@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Play Caller</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* Layout: sideline call sheet. Look list on the left, whiteboard diagram + calls on the right. */
+  --paper: #f3f4ef;
+  --card: #ffffff;
+  --ink: #17211c;
+  --muted: #5b675f;
+  --line: #d5dad1;
+  --accent: #116b49;
+  --accent-ink: #ffffff;
+  --field: #1d4a34;
+  --chalk: #edf2e9;
+  --chalk-dim: rgba(237, 242, 233, 0.28);
+  --route: #ffd23f;
+  --run: #ff9248;
+  --def: #ff7676;
+  --zone-deep: rgba(120, 190, 255, 0.20);
+  --zone-under: rgba(255, 255, 255, 0.10);
+  --zone-special: rgba(255, 118, 118, 0.20);
+  --warn-bg: #fff4d6;
+  --warn-ink: #6d4c00;
+  --font-display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Barlow", "Helvetica Neue", Arial, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0f1512; --card: #17201b; --ink: #e5ebe5; --muted: #9ba89f; --line: #29342d;
+    --accent: #4cbf8b; --accent-ink: #08130d; --field: #15392a; --warn-bg: #3a2f10; --warn-ink: #ffdf8a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0f1512; --card: #17201b; --ink: #e5ebe5; --muted: #9ba89f; --line: #29342d;
+  --accent: #4cbf8b; --accent-ink: #08130d; --field: #15392a; --warn-bg: #3a2f10; --warn-ink: #ffdf8a;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--paper); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.5; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 700; letter-spacing: 0.01em; margin: 0; text-wrap: balance; }
+button { font: inherit; color: inherit; }
+button:focus-visible, a:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; padding: 24px clamp(16px, 4vw, 40px) 16px; border-bottom: 1px solid var(--line); }
+.brand h1 { font-size: 2.4rem; line-height: 1; text-transform: uppercase; }
+.brand h1 span { color: var(--accent); }
+.brand p { margin: 6px 0 0; color: var(--muted); }
+
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--card); }
+.seg button { border: 0; background: transparent; padding: 8px 14px; cursor: pointer; font-weight: 600; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.seg-label { display: block; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 4px; }
+
+.layout { display: grid; grid-template-columns: 230px 1fr; gap: 24px; padding: 20px clamp(16px, 4vw, 40px) 40px; max-width: 1280px; margin: 0 auto; }
+.looks { display: flex; flex-direction: column; gap: 6px; position: sticky; top: 16px; align-self: start; }
+.looks h2 { font-size: 0.8rem; font-family: var(--font-body); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 4px; }
+.look-btn { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); cursor: pointer; }
+.look-btn:hover { border-color: var(--accent); }
+.look-btn[aria-current="true"] { border-color: var(--accent); box-shadow: inset 4px 0 0 var(--accent); }
+.look-btn strong { font-family: var(--font-display); font-size: 1.15rem; font-weight: 600; }
+.shell { font-size: 0.72rem; font-weight: 600; color: var(--muted); white-space: nowrap; }
+
+.detail { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.look-card { display: grid; grid-template-columns: minmax(260px, 420px) 1fr; gap: 20px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+.look-card h2 { font-size: 2.2rem; line-height: 1; text-transform: uppercase; }
+.alias { color: var(--muted); margin: 4px 0 12px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.chip { display: inline-block; font-size: 0.75rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); background: var(--paper); white-space: nowrap; }
+.chip.freq { border-color: var(--accent); color: var(--accent); background: transparent; }
+.info h3 { font-family: var(--font-body); font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 14px 0 4px; }
+.info p { margin: 0; max-width: 65ch; }
+.info ul { margin: 0; padding-left: 18px; max-width: 65ch; }
+.avoid { border-left: 3px solid var(--def); padding-left: 10px; }
+.level-note { background: var(--paper); border-radius: 8px; padding: 10px 12px; margin-top: 14px; max-width: 65ch; }
+.level-note b { font-family: var(--font-display); font-size: 1.05rem; text-transform: uppercase; letter-spacing: 0.03em; }
+
+.field { width: 100%; height: auto; display: block; border-radius: 8px; background: var(--field); }
+.legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.78rem; color: var(--muted); margin-top: 8px; }
+.legend i { display: inline-block; width: 18px; height: 10px; border-radius: 3px; vertical-align: -1px; margin-right: 4px; }
+
+.calls-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px; }
+.calls-head h2 { font-size: 1.6rem; text-transform: uppercase; }
+.calls-head p { margin: 2px 0 0; color: var(--muted); }
+.calls { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.play { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.play-top { display: flex; align-items: baseline; gap: 10px; }
+.num { font-family: var(--font-display); font-size: 1.6rem; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; line-height: 1; }
+.play h3 { font-size: 1.35rem; line-height: 1.1; }
+.play .chips { margin: 0; }
+.chip.t-Pass { border-color: #b88f00; color: #8a6a00; }
+.chip.t-Run { border-color: #c85a14; color: #a2470d; }
+.chip.t-RPO { border-color: #6a5acd; color: #5546b8; }
+.chip.t-Screen { border-color: #2b7fb8; color: #1f6699; }
+:root[data-theme="dark"] .chip.t-Pass { color: #ffd23f; border-color: #ffd23f; }
+:root[data-theme="dark"] .chip.t-Run { color: #ff9e5e; border-color: #ff9e5e; }
+:root[data-theme="dark"] .chip.t-RPO { color: #a99cff; border-color: #a99cff; }
+:root[data-theme="dark"] .chip.t-Screen { color: #7cc4f2; border-color: #7cc4f2; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .chip.t-Pass { color: #ffd23f; border-color: #ffd23f; }
+  :root:not([data-theme="light"]) .chip.t-Run { color: #ff9e5e; border-color: #ff9e5e; }
+  :root:not([data-theme="light"]) .chip.t-RPO { color: #a99cff; border-color: #a99cff; }
+  :root:not([data-theme="light"]) .chip.t-Screen { color: #7cc4f2; border-color: #7cc4f2; }
+}
+.why { margin: 0; }
+.why b, .read b { display: block; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.read { margin: 0; font-size: 0.95rem; }
+.meta { display: flex; justify-content: space-between; gap: 8px; font-size: 0.8rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 8px; margin-top: auto; }
+.warn { background: var(--warn-bg); color: var(--warn-ink); font-size: 0.85rem; border-radius: 6px; padding: 6px 10px; }
+.empty { color: var(--muted); padding: 20px; border: 1px dashed var(--line); border-radius: 12px; }
+footer { color: var(--muted); font-size: 0.85rem; padding: 0 clamp(16px, 4vw, 40px) 32px; max-width: 1280px; margin: 0 auto; }
+
+.mk-route { fill: var(--route); }
+.mk-run { fill: var(--run); }
+.mk-def { fill: var(--def); }
+.mk-tee { stroke: var(--chalk); stroke-width: 2; }
+
+@media (max-width: 860px) {
+  .layout { grid-template-columns: 1fr; }
+  .looks { position: static; flex-direction: row; overflow-x: auto; padding-bottom: 4px; }
+  .looks h2 { display: none; }
+  .look-btn { flex: 0 0 auto; width: auto; flex-direction: column; align-items: flex-start; gap: 0; }
+  .look-card { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .look-btn, .seg button { transition: background-color 120ms, border-color 120ms; }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <marker id="m-route" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5L0 10z" class="mk-route"/></marker>
+    <marker id="m-run" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5L0 10z" class="mk-run"/></marker>
+    <marker id="m-def" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5L0 10z" class="mk-def"/></marker>
+    <marker id="m-tee" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M5 0V10" class="mk-tee"/></marker>
+  </defs>
+</svg>
+
+<header class="top">
+  <div class="brand">
+    <h1>Play <span>Caller</span></h1>
+    <p>Pick the defensive look. See the calls that beat it, and why they work.</p>
+  </div>
+  <div>
+    <span class="seg-label" id="level-label">Level</span>
+    <div class="seg" role="group" aria-labelledby="level-label" id="level"></div>
+  </div>
+</header>
+
+<main class="layout">
+  <nav class="looks" aria-label="Defensive looks" id="looks"><h2>Defensive look</h2></nav>
+  <section class="detail">
+    <article class="look-card" id="look"></article>
+    <div class="calls-head">
+      <div>
+        <h2 id="calls-title">Calls that beat it</h2>
+        <p>Ordered from base call to change-up. Diagrams use a 2x2 set unless noted.</p>
+      </div>
+      <div>
+        <span class="seg-label" id="filter-label">Show</span>
+        <div class="seg" role="group" aria-labelledby="filter-label" id="filter"></div>
+      </div>
+    </div>
+    <div class="calls" id="calls"></div>
+  </section>
+</main>
+<footer>Version 1. Diagrams are simplified: the defense is shown as a nickel (4-2-5) look against a 2x2 formation, and depths are approximate. Real defenses disguise and rotate, so confirm the look after the snap.</footer>
+
+<script>
+const LEVELS = [["hs", "High School"], ["college", "College"], ["nfl", "NFL"]];
+const FILTERS = [["all", "All"], ["pass", "Pass"], ["run", "Run"]];
+
+// Offensive formations. x: 0-100 across the field, y: yards from the line of scrimmage.
+const FORMS = {
+  doubles: { label: "Doubles (2x2)", X: [8, -0.5], H: [26, -1], Y: [74, -1], Z: [92, -0.5], QB: [50, -5], RB: [56, -5] },
+  trips:   { label: "Trips right (3x1)", X: [8, -0.5], H: [66, -1], Y: [79, -1], Z: [92, -0.5], QB: [50, -5], RB: [44, -5] },
+  bunch:   { label: "Bunch right", X: [8, -0.5], Y: [80, -0.6], H: [77, -2.2], Z: [84, -2.2], QB: [50, -5], RB: [44, -5] }
+};
+const OL = [40, 45, 50, 55, 60];
+
+// t: route | run | block | option (dashed run) | fake (dashed, no arrow)
+const PLAYS = {
+  slantFlat: { name: "Slant-Flat", type: "Pass", f: "doubles", diff: "Simple",
+    desc: "Outside receivers run 3-step slants and the slots run to the flat. A quick-game staple you can call on any down.",
+    read: "Watch the flat defender. If he widens with the flat, throw the slant behind him. If he sits on the slant, hit the flat.",
+    r: [{p:"X",pts:[[8,2],[20,7]]},{p:"H",pts:[[24,2],[10,3]]},{p:"Z",pts:[[92,2],[80,7]]},{p:"Y",pts:[[76,2],[90,3]]},{p:"RB",pts:[[59,-2.5]],t:"block"}] },
+  stick: { name: "Stick", type: "Pass", f: "doubles", diff: "Simple",
+    desc: "Slot runs to 6 yards and turns to face the QB, the back runs to the flat, and the outside receiver clears with a fade.",
+    read: "Read the flat defender. Flat first if he drops, stick if he jumps the flat. Throw the stick on time as the receiver turns.",
+    r: [{p:"Y",pts:[[74,6],[70,6]]},{p:"Z",pts:[[92,23]]},{p:"RB",pts:[[64,-4],[86,1]]},{p:"H",pts:[[26,6],[30,6]]},{p:"X",pts:[[8,23]]}] },
+  smash: { name: "Smash", type: "Pass", f: "doubles", diff: "Moderate",
+    desc: "Outside receiver runs a 5-yard hitch and the slot runs a corner route over it. A high-low stretch on the cornerback.",
+    read: "Watch the flat corner. If he sinks under the corner route, throw the hitch. If he squats on the hitch, throw the corner over him before the safety gets there.",
+    r: [{p:"X",pts:[[8,5],[10,4.4]]},{p:"H",pts:[[26,10],[12,20]]},{p:"Y",pts:[[74,10],[88,20]]},{p:"Z",pts:[[92,5],[90,4.4]]},{p:"RB",pts:[[60,-2.5],[64,2]]}] },
+  verts: { name: "Four Verticals", type: "Pass", f: "doubles", diff: "Moderate",
+    desc: "All four receivers push vertically and the slots run the seams. That puts four deep threats on three (or two) deep defenders.",
+    read: "Key the middle of the field safety. Throw the seam he doesn't take. If everything is covered, the back is your checkdown.",
+    r: [{p:"X",pts:[[8,23]]},{p:"H",pts:[[26,8],[30,23]]},{p:"Y",pts:[[74,8],[70,23]]},{p:"Z",pts:[[92,23]]},{p:"RB",pts:[[60,-3],[62,2]]}] },
+  mesh: { name: "Mesh", type: "Pass", f: "doubles", diff: "Simple",
+    desc: "Two shallow crossers pass nearly shoulder-to-shoulder at 5-6 yards, creating traffic for man defenders. Outside receivers clear deep and the back runs to the flat.",
+    read: "Against man, throw the crosser who comes out of the mesh clean, on the run. Against zone, he settles in the window between linebackers.",
+    r: [{p:"H",pts:[[30,5],[80,5]]},{p:"Y",pts:[[70,6],[22,6]]},{p:"X",pts:[[8,23]]},{p:"Z",pts:[[92,23]]},{p:"RB",pts:[[64,-4],[86,1]]}] },
+  dagger: { name: "Dagger", type: "Pass", f: "doubles", diff: "Moderate",
+    desc: "Slot runs a seam to clear the middle while the outside receiver runs a deep dig at 15 yards underneath it.",
+    read: "Seam first if the safety doesn't carry it. If the safety carries the seam, the dig comes open in the space he left.",
+    r: [{p:"H",pts:[[26,8],[30,23]]},{p:"X",pts:[[8,15],[38,15]]},{p:"Y",pts:[[74,5],[72,4.4]]},{p:"Z",pts:[[92,2],[80,7]]},{p:"RB",pts:[[60,-3],[62,2]]}] },
+  flood: { name: "Flood (Sail)", type: "Pass", f: "trips", diff: "Moderate",
+    desc: "Three receivers stretch one side at three levels: a go route deep, an out at 12 yards, and a flat route underneath.",
+    read: "Read the flat defender. Throw the out if he jumps the flat; throw the flat if he drops under the out.",
+    r: [{p:"Z",pts:[[92,23]]},{p:"Y",pts:[[79,12],[95,12]]},{p:"H",pts:[[70,1],[94,3]]},{p:"X",pts:[[8,12],[30,12]]},{p:"RB",pts:[[45,-2.5]],t:"block"}] },
+  ycross: { name: "Y-Cross", type: "Pass", f: "doubles", diff: "Advanced",
+    desc: "The Y runs a deep cross at about 15 yards to the far side, under a post and a go. The back is the outlet.",
+    read: "Post first if the deep defender bites down. The cross arrives in the void behind the linebackers. Back to the flat if both are covered.",
+    r: [{p:"X",pts:[[8,23]]},{p:"Y",pts:[[74,6],[26,15]]},{p:"Z",pts:[[92,10],[72,22]]},{p:"H",pts:[[22,2],[8,3]]},{p:"RB",pts:[[62,-3],[66,2]]}] },
+  mills: { name: "Mills (Post-Dig)", type: "Pass", f: "doubles", diff: "Advanced",
+    desc: "Outside receiver runs a post over a slot dig at 12 yards. A two-man combination built to beat safeties who read the slot.",
+    read: "Watch the safety on that side. If he drives on the dig, throw the post behind him. If he stays deep, throw the dig.",
+    r: [{p:"X",pts:[[8,12],[28,24]]},{p:"H",pts:[[26,12],[52,12]]},{p:"Y",pts:[[74,5],[72,4.4]]},{p:"Z",pts:[[92,23]]},{p:"RB",pts:[[60,-3],[62,2]]}] },
+  snag: { name: "Snag", type: "Pass", f: "bunch", diff: "Moderate",
+    desc: "From a tight bunch: the point man runs a snag (sit) route, with a corner route over it and a flat under it. The bunch creates natural rubs.",
+    read: "Corner first if the flat defender sits low. Snag in the hole next. The flat is your quick answer against pressure.",
+    r: [{p:"Y",pts:[[80,6],[76,5]]},{p:"Z",pts:[[86,8],[96,18]]},{p:"H",pts:[[84,0],[97,1]]},{p:"X",pts:[[8,2],[20,7]]},{p:"RB",pts:[[45,-2.5]],t:"block"}] },
+  rpoBubble: { name: "Inside Zone + Bubble", type: "RPO", f: "doubles", diff: "Moderate",
+    desc: "The line blocks inside zone while the slot runs a bubble. The QB reads one defender after the snap and decides: hand off or throw.",
+    read: "Read the apex defender over the slot. If he steps toward the run, throw the bubble. If he widens with the bubble, hand it off.",
+    r: [{p:"RB",pts:[[50,-2],[45,4]],t:"run"},{p:"H",pts:[[22,-2],[11,-1]]},{p:"X",pts:[[9,3]],t:"block"},
+        {ol:0,pts:[[38,0.5]],t:"block"},{ol:1,pts:[[43,0.5]],t:"block"},{ol:2,pts:[[48,0.5]],t:"block"},{ol:3,pts:[[53,0.5]],t:"block"},{ol:4,pts:[[58,0.5]],t:"block"}] },
+  rbScreen: { name: "RB Screen", type: "Screen", f: "doubles", diff: "Moderate",
+    desc: "Linemen let the rushers through, then release to build a wall for the back in the flat. Receivers run off the defensive backs.",
+    read: "QB drops deep to draw the rush, then dumps it to the back. Against a blitz there are fewer defenders left to make the tackle.",
+    r: [{p:"RB",pts:[[62,-4],[67,-2.5]]},{ol:2,pts:[[60,2]],t:"block"},{ol:3,pts:[[65,1.5]],t:"block"},{ol:4,pts:[[71,1]],t:"block"},
+        {p:"X",pts:[[8,18]]},{p:"H",pts:[[26,13]]},{p:"Y",pts:[[74,13]]},{p:"Z",pts:[[92,18]]}] },
+  qbDraw: { name: "QB Draw", type: "Run", f: "doubles", diff: "Simple",
+    desc: "Shows pass with every receiver releasing vertically, then the QB runs up the middle. Needs a QB who can run.",
+    read: "Sell the pass drop. Run once the man defenders turn their backs to chase receivers.",
+    r: [{p:"QB",pts:[[50,-6],[51,6]],t:"run"},{p:"RB",pts:[[55,-2.5]],t:"block"},{p:"X",pts:[[8,20]]},{p:"H",pts:[[26,16]]},{p:"Y",pts:[[74,16]]},{p:"Z",pts:[[92,20]]}] },
+  boot: { name: "Play-Action Boot", type: "Pass", f: "doubles", diff: "Moderate",
+    desc: "Fake the run one way while the QB rolls out the other with a three-level flood: drag, out at 10 yards, and go.",
+    read: "Read high to low on the run: out, then drag. If nobody contains the edge, the QB runs it.",
+    r: [{p:"RB",pts:[[45,-3],[40,0]],t:"fake"},{p:"QB",pts:[[46,-6],[67,-5]],t:"option"},{p:"H",pts:[[30,3],[72,3]]},{p:"Y",pts:[[74,10],[89,10]]},{p:"Z",pts:[[92,23]]},{p:"X",pts:[[8,12],[28,22]]}] },
+  iz: { name: "Inside Zone", type: "Run", f: "doubles", diff: "Simple",
+    desc: "The line steps playside together and blocks whoever shows up in their area. The back reads the defensive line and can bounce, bang or bend it back.",
+    read: "The back reads the first down lineman past the center and cuts off his movement.",
+    r: [{p:"RB",pts:[[51,-2],[47,4]],t:"run"},{ol:0,pts:[[38,0.5]],t:"block"},{ol:1,pts:[[43,0.5]],t:"block"},{ol:2,pts:[[48,0.5]],t:"block"},{ol:3,pts:[[53,0.5]],t:"block"},{ol:4,pts:[[58,0.5]],t:"block"},
+        {p:"X",pts:[[9,3]],t:"block"},{p:"Z",pts:[[91,3]],t:"block"}] },
+  power: { name: "Power", type: "Run", f: "doubles", diff: "Moderate",
+    desc: "A gap scheme. Playside linemen block down, the backside guard pulls and leads through the hole, and the back follows him.",
+    read: "The back stays tight to the puller's hip and cuts off his block.",
+    r: [{p:"RB",pts:[[51,-2],[44,4]],t:"run"},{ol:3,pts:[[53,-2.6],[44,1.5]],t:"block"},{ol:0,pts:[[43,0.8]],t:"block"},{ol:1,pts:[[48,0.8]],t:"block"},{ol:2,pts:[[53,0.6]],t:"block"},{ol:4,pts:[[58,0.4]],t:"block"}] },
+  oz: { name: "Outside Zone", type: "Run", f: "doubles", diff: "Moderate",
+    desc: "The line reach-blocks toward the sideline. The back presses the edge and cuts up wherever a crease opens.",
+    read: "Aim for the outside hip of the end man on the line. One cut, then get vertical.",
+    r: [{p:"RB",pts:[[64,-3],[72,4]],t:"run"},{ol:0,pts:[[43,0.6]],t:"block"},{ol:1,pts:[[48,0.6]],t:"block"},{ol:2,pts:[[53,0.6]],t:"block"},{ol:3,pts:[[58,0.6]],t:"block"},{ol:4,pts:[[63,0.6]],t:"block"},
+        {p:"Y",pts:[[77,1]],t:"block"},{p:"Z",pts:[[91,3]],t:"block"}] },
+  draw: { name: "RB Draw", type: "Run", f: "doubles", diff: "Simple",
+    desc: "The line shows a pass set while the back delays, then takes the handoff into the space left by rushers and dropping linebackers.",
+    read: "Patience. Let the rushers run upfield past you, then hit the open gap.",
+    r: [{p:"RB",pts:[[56,-4],[52,5]],t:"run"},{ol:0,pts:[[39,-2.4]],t:"block"},{ol:1,pts:[[45,-2.4]],t:"block"},{ol:2,pts:[[50,-2.2]],t:"block"},{ol:3,pts:[[55,-2.4]],t:"block"},{ol:4,pts:[[61,-2.4]],t:"block"},
+        {p:"X",pts:[[8,16]]},{p:"Z",pts:[[92,16]]}] },
+  zoneRead: { name: "Zone Read", type: "Run", f: "doubles", diff: "Moderate",
+    desc: "Inside zone with the backside defensive end left unblocked on purpose. The QB reads him and decides who keeps the ball.",
+    read: "If the end crashes down on the back, the QB pulls it and runs. If he stays home, hand it off.",
+    r: [{p:"RB",pts:[[48,-3],[44,4]],t:"run"},{p:"QB",pts:[[60,-4],[66,4]],t:"option"},{ol:0,pts:[[38,0.5]],t:"block"},{ol:1,pts:[[43,0.5]],t:"block"},{ol:2,pts:[[48,0.5]],t:"block"},{ol:3,pts:[[53,0.5]],t:"block"}] }
+};
+
+// Defensive looks. defs: [label, x, y]. zones: [x1, x2, y1, y2, kind, label]. man: [x, y, receiver]. blitz: [x, y, tx, ty].
+const LOOKS = [
+  { id: "cover-3", name: "Cover 3", alias: "Three-deep zone, also called Sky", shell: "1-high",
+    spot: "One safety in the middle of the field at 12-14 yards. Corners play off at 7+ yards with outside leverage and bail at the snap. A safety often walks down toward the box.",
+    weak: ["The curl-flat defender has to cover two routes by himself", "Seams: four vertical routes against three deep defenders", "Quick throws in front of bailing corners"],
+    avoid: "Deep outside throws. The corners bail and take them away.",
+    lv: { hs: ["Very common", "The default coverage for most high school defenses. Expect it on early downs and against run-heavy teams."],
+          college: ["Common", "Often played as pattern-match Cover 3, so the curl-flat player may carry a vertical slot. Confirm with the seam read."],
+          nfl: ["Common", "A base single-high coverage, but often disguised: it can rotate late out of a two-high shell. Confirm it after the snap."] },
+    d: { defs: [["CB",8,8],["CB",92,8],["FS",50,14],["SS",78,6],["NB",24,5],["W",42,5],["M",58,5]],
+         zones: [[0,33,12,24,"d"],[33,67,12,24,"d"],[67,100,12,24,"d"],[8,28,3,10,"u"],[28,50,3,10,"u"],[50,72,3,10,"u"],[72,92,3,10,"u"]] },
+    calls: [["stick","Base","The curl-flat defender can't cover both the flat and the stick. Whichever he takes, the other is open."],
+            ["flood","Base","Three routes against two defenders on that side. The bailing corner carries the go, so the curl-flat player has to pick the out or the flat."],
+            ["slantFlat","Base","The corners play off with outside leverage and bail, so the slant comes open quickly inside them."],
+            ["rpoBubble","Run / pass","The apex defender is asked to fit the run and cover the bubble. He can't do both."],
+            ["verts","Shot","Four verticals against three deep defenders. The middle safety can only take one seam."],
+            ["boot","Change-up","The rolled-down safety and linebackers flow hard to the run fake, and the out route sits in front of the bailing corner."]] },
+
+  { id: "cover-2", name: "Cover 2", alias: "Two-deep zone with squatting corners", shell: "2-high",
+    spot: "Two safeties at 12-14 yards, each about on the hash. Corners press or sit at about 5 yards with outside leverage and squat in the flat after the snap.",
+    weak: ["The deep middle between the two safeties", "The sideline hole between the squatting corner and the safety", "A lighter box against the run"],
+    avoid: "Quick outs and flat routes. The corners sit right on them.",
+    lv: { hs: ["Common", "Seen often on passing downs and against spread teams."],
+          college: ["Moderate", "Usually rotated into from other shells. True Cover 2 shows up most on third down."],
+          nfl: ["Moderate", "Usually disguised. Identify it by the corners squatting after the snap."] },
+    d: { defs: [["CB",9,3],["CB",91,3],["FS",24,13],["SS",76,13],["NB",28,5],["W",48,5],["M",64,5]],
+         zones: [[0,50,12,24,"d"],[50,100,12,24,"d"],[0,18,1,9,"u"],[18,38,3,10,"u"],[38,62,3,10,"u"],[62,82,3,10,"u"],[82,100,1,9,"u"]] },
+    calls: [["smash","Base","The squatting corner can't play both the hitch and the corner route, and the half-field safety is too far away to stop a well-thrown corner."],
+            ["iz","Run","Two deep safeties leave a lighter box, often six. Run inside where you have the numbers."],
+            ["mills","Shot","The post splits the two safeties and lands in the deep middle hole that Cover 2 leaves open."],
+            ["verts","Shot","Two safeties against two seams. Hold one safety with your eyes, then throw the other seam."],
+            ["draw","Change-up","Linebackers turn and drop to their hooks at the snap, leaving room in the middle."]] },
+
+  { id: "tampa-2", name: "Tampa 2", alias: "Cover 2 with the Mike running the deep middle", shell: "2-high",
+    spot: "Looks like Cover 2 before the snap. After the snap the middle linebacker sprints to 15-20 yards to take away the deep middle.",
+    weak: ["The short middle the Mike leaves behind", "The sideline hole between the corner and the safety", "Draws and inside runs once the Mike bails"],
+    avoid: "Deep middle throws. The Mike runs into exactly that spot.",
+    lv: { hs: ["Less common", "It needs a Mike who can run 15-20 yards deep. Teams without one play regular Cover 2 instead."],
+          college: ["Moderate", "Shows up mostly on passing downs."],
+          nfl: ["Moderate", "A staple for some defenses, especially on passing downs."] },
+    d: { defs: [["CB",9,3],["CB",91,3],["FS",22,14],["SS",78,14],["NB",28,5],["W",72,5],["M",50,6]],
+         zones: [[0,46,14,24,"d"],[54,100,14,24,"d"],[38,62,9,18,"s","Mike runs"],[0,18,1,9,"u"],[18,38,3,9,"u"],[62,82,3,9,"u"],[82,100,1,9,"u"]] },
+    calls: [["stick","Base","The Mike runs deep and empties the short middle. Stick routes settle underneath where he used to be."],
+            ["smash","Base","The corners still squat in the flat, so the high-low on the corner works the same way it does against Cover 2."],
+            ["iz","Run","Only one linebacker stays shallow. Run straight at the light box."],
+            ["draw","Run","The Mike bails at the snap, which vacates the middle right where the draw hits."],
+            ["dagger","Shot","The Mike has to carry the seam, so the deep dig comes open behind the outside linebacker."]] },
+
+  { id: "cover-4", name: "Cover 4", alias: "Quarters", shell: "2-high",
+    spot: "Two safeties at 8-10 yards, closer to the line than in Cover 2. Corners off at 7+ yards. The safeties read the slot receiver and fit the run fast.",
+    weak: ["Only three underneath defenders", "Safeties who jump the slot can be beaten deep behind them", "The apex defender is stretched between run and bubble"],
+    avoid: "Runs straight at the strength, because the safeties fit the run fast. Also avoid curl routes into deep-sitting corners.",
+    lv: { hs: ["Common", "Popular with well-coached programs against spread offenses. Often called Quarters."],
+          college: ["Very common", "A base defense for many college teams against spread offenses."],
+          nfl: ["Common", "Often paired with Cover 6 and late rotations."] },
+    d: { defs: [["CB",9,7],["CB",91,7],["FS",32,10],["SS",68,10],["NB",24,4],["W",48,5],["M",72,4]],
+         zones: [[0,25,12,24,"d"],[25,50,12,24,"d"],[50,75,12,24,"d"],[75,100,12,24,"d"],[8,34,2,10,"u"],[34,62,2,10,"u"],[62,90,2,10,"u"]] },
+    calls: [["mills","Shot","Quarters safeties read the slot. When he breaks on the dig, the safety drives on it and the post runs right behind him."],
+            ["stick","Base","Only three underneath defenders. Stick and flat routes find the soft spots."],
+            ["slantFlat","Base","Quarters corners play off and deep, so quick throws in front of them are open."],
+            ["rpoBubble","Run / pass","Quarters safeties fit the run aggressively, leaving the apex defender alone against the bubble."],
+            ["dagger","Shot","If the safety carries the seam, the dig settles in the space he left. If he jumps the dig, the seam is open."]] },
+
+  { id: "cover-6", name: "Cover 6", alias: "Quarter-quarter-half: Cover 2 to one side, Quarters to the other", shell: "2-high",
+    spot: "Two-high look, but the two sides play differently. One corner squats (the Cover 2 side, usually the boundary) while the other plays off (the Quarters side).",
+    weak: ["The Cover 2 side has the corner-safety sideline hole", "The Quarters side has the slot-reading safety", "Attack each side with its own beater"],
+    avoid: "Smash into the Quarters side, or hitches into the squatting corner.",
+    lv: { hs: ["Less common", "Takes a lot of teaching. Mostly seen at programs that already play Quarters."],
+          college: ["Common", "A standard answer to trips and to field/boundary splits."],
+          nfl: ["Common", "Used heavily and often disguised with late rotation."] },
+    d: { defs: [["CB",9,3],["FS",24,14],["NB",28,5],["W",48,5],["M",70,4],["SS",68,10],["CB",91,7]],
+         zones: [[0,50,13,24,"d"],[50,75,12,24,"d"],[75,100,12,24,"d"],[0,18,1,9,"u"],[18,40,3,10,"u"],[40,62,3,10,"u"],[62,90,2,10,"u"]],
+         notes: [[25,26.5,"COVER 2 SIDE"],[75,26.5,"QUARTERS SIDE"]] },
+    calls: [["smash","Base","Run Smash to the Cover 2 side, where the corner squats and can't cover both the hitch and the corner."],
+            ["mills","Shot","Run Post-Dig to the Quarters side. The safety there reads the slot, just like Cover 4."],
+            ["rpoBubble","Run / pass","Bubble toward the Quarters side, which has the fewest underneath defenders."],
+            ["iz","Run","A two-high shell usually means a lighter box. Run when you count fewer box defenders than your blockers plus one."]] },
+
+  { id: "cover-1", name: "Cover 1", alias: "Man-free: man coverage with one deep safety", shell: "1-high",
+    spot: "One deep safety in the middle. Corners in press or tight alignment, often with inside leverage. Defenders line up across from specific receivers and follow them in motion.",
+    weak: ["Rub routes and crossers that make defenders trail", "The seam away from the single safety", "QB runs once defenders turn to chase receivers"],
+    avoid: "Zone-beater routes that stop and settle. A man defender sits right on them.",
+    lv: { hs: ["Common", "Usually paired with a robber in the middle or a pressure."],
+          college: ["Common", "Seen often in the red zone and on third down."],
+          nfl: ["Very common", "The most common man coverage in the NFL."] },
+    d: { defs: [["CB",8,1.5],["CB",92,1.5],["NB",26,3.5],["SS",74,4.5],["W",54,4],["M",46,8],["FS",50,15]],
+         zones: [[20,80,13,24,"d"],[36,62,6,11,"s","Robber"]],
+         man: [[8,1.5,"X"],[92,1.5,"Z"],[26,3.5,"H"],[74,4.5,"Y"],[54,4,"RB"]] },
+    calls: [["mesh","Base","Crossers create traffic. Man defenders get picked or have to trail, so one crosser comes out clean."],
+            ["slantFlat","Base","A quick slant beats press man when the receiver wins inside early."],
+            ["snag","Base","The bunch creates rubs and confusion about who covers whom."],
+            ["ycross","Shot","The cross runs away from its defender and across the field. The robber is the only underneath help."],
+            ["verts","Shot","The single safety can only help on one seam. The other seam is one-on-one."],
+            ["qbDraw","Change-up","Man defenders turn to run with receivers, leaving only the robber in the middle."]] },
+
+  { id: "cover-0", name: "Cover 0", alias: "All-out man blitz with no deep safety", shell: "0-high",
+    spot: "No one deep. Safeties walk down, defenders line up tight on receivers, and six or more players threaten to rush.",
+    weak: ["Nobody deep: one missed tackle is a touchdown", "Blitzers run past screens", "Rubs make man defenders trail with no help"],
+    avoid: "Slow-developing play-action and long dropbacks. The pressure arrives before the route does.",
+    lv: { hs: ["Common", "Seen most in short yardage and near the goal line."],
+          college: ["Situational", "Third downs and the red zone."],
+          nfl: ["Situational", "Mostly third downs and the red zone, often disguised until late."] },
+    d: { defs: [["CB",8,1.5],["CB",92,1.5],["NB",26,3],["SS",74,3.5],["FS",61,5],["W",43,3.5],["M",52,3.5]],
+         zones: [],
+         man: [[8,1.5,"X"],[92,1.5,"Z"],[26,3,"H"],[74,3.5,"Y"],[61,5,"RB"]],
+         blitz: [[43,3.5,44,-2.5],[52,3.5,52,-2.5]],
+         notes: [[50,18,"NO DEEP SAFETY"]] },
+    calls: [["slantFlat","Vs. pressure","No one is deep and blitzers are coming. Get the ball out on three steps and let the receiver run."],
+            ["rbScreen","Vs. pressure","Blitzers run themselves past the screen, so fewer defenders are left to tackle the back in space."],
+            ["mesh","Base","The rub makes man coverage trail, so the crossers are open almost immediately."],
+            ["snag","Base","Bunch rubs force man defenders through traffic with no help behind them."],
+            ["verts","Shot","No safety help at all. A well-thrown fade is one-on-one for a touchdown. Keep the back in to protect."]] },
+
+  { id: "two-man", name: "2-Man", alias: "Two deep safeties with man coverage underneath", shell: "2-high",
+    spot: "Two deep safeties like Cover 2, but the corners play trail technique: aligned inside and underneath, chasing from behind.",
+    weak: ["Crossing routes against trailing defenders", "QB runs: everyone underneath has their back to the ball", "A six-man box"],
+    avoid: "Deep shots. Two safeties sit over the top. Also avoid routes that stop in front of trailing defenders.",
+    lv: { hs: ["Rare", "It needs corners who can run with receivers from behind."],
+          college: ["Situational", "Mostly third and long."],
+          nfl: ["Situational", "A third-and-long staple."] },
+    d: { defs: [["CB",9,1.5],["CB",91,1.5],["NB",26,3.5],["M",70,4.5],["W",54,5],["FS",24,14],["SS",76,14]],
+         zones: [[0,50,13,24,"d"],[50,100,13,24,"d"]],
+         man: [[9,1.5,"X"],[91,1.5,"Z"],[26,3.5,"H"],[70,4.5,"Y"],[54,5,"RB"]] },
+    calls: [["qbDraw","Run","Man defenders trail receivers with their backs to the QB. The middle is empty once they turn."],
+            ["mesh","Base","Trailing defenders have to chase crossers through traffic, which is the weak spot of 2-Man."],
+            ["snag","Base","Rubs force trailing defenders through traffic, and the corner route breaks away from them."],
+            ["iz","Run","Five man defenders plus two deep safeties leaves only a six-man box."],
+            ["draw","Change-up","Linebackers in man turn to cover backs and tight ends, opening the middle."]] }
+];
+
+// ---------- drawing ----------
+const SX = x => (10 + x * 3).toFixed(1);
+const SY = y => (170 - y * 6).toFixed(1);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function fieldBase() {
+  let s = `<rect x="0" y="0" width="320" height="216" fill="var(--field)"/>`;
+  for (let y = -5; y <= 25; y += 5) {
+    if (y === 0) continue;
+    s += `<line x1="6" x2="314" y1="${SY(y)}" y2="${SY(y)}" stroke="var(--chalk-dim)" stroke-width="0.6"/>`;
+    if (y > 0) s += `<text x="314" y="${(+SY(y) - 2).toFixed(1)}" text-anchor="end" font-size="7" fill="var(--chalk-dim)" font-family="var(--font-body)">${y}</text>`;
+  }
+  s += `<line x1="6" x2="314" y1="${SY(0)}" y2="${SY(0)}" stroke="var(--chalk)" stroke-width="1" stroke-dasharray="4 3" opacity="0.7"/>`;
+  return s;
+}
+
+function offense(form, faint) {
+  const f = FORMS[form];
+  const op = faint ? 0.45 : 1;
+  let s = `<g opacity="${op}">`;
+  OL.forEach((x, i) => {
+    s += `<rect x="${(+SX(x) - 4).toFixed(1)}" y="${(+SY(-1) - 4).toFixed(1)}" width="8" height="8" rx="1.5" fill="none" stroke="var(--chalk)" stroke-width="1.2"/>`;
+  });
+  for (const k of ["X", "H", "Y", "Z", "QB", "RB"]) {
+    const [x, y] = f[k];
+    const lbl = k === "QB" ? "Q" : k === "RB" ? "R" : k;
+    s += `<circle cx="${SX(x)}" cy="${SY(y)}" r="5.2" fill="var(--field)" stroke="var(--chalk)" stroke-width="1.2"/>`;
+    s += `<text x="${SX(x)}" y="${(+SY(y) + 2.4).toFixed(1)}" text-anchor="middle" font-size="6.5" font-weight="600" fill="var(--chalk)" font-family="var(--font-body)">${lbl}</text>`;
+  }
+  return s + `</g>`;
+}
+
+function path(pts) { return pts.map((p, i) => `${i ? "L" : "M"}${SX(p[0])} ${SY(p[1])}`).join(" "); }
+
+function playSVG(play) {
+  const f = FORMS[play.f];
+  let routes = "";
+  for (const r of play.r) {
+    const start = r.p ? f[r.p] : [OL[r.ol], -1];
+    const d = path([start, ...r.pts]);
+    const t = r.t || "route";
+    if (t === "route") routes += `<path d="${d}" fill="none" stroke="var(--route)" stroke-width="1.8" stroke-linejoin="round" marker-end="url(#m-route)"/>`;
+    else if (t === "run") routes += `<path d="${d}" fill="none" stroke="var(--run)" stroke-width="2.4" stroke-linejoin="round" marker-end="url(#m-run)"/>`;
+    else if (t === "option") routes += `<path d="${d}" fill="none" stroke="var(--run)" stroke-width="2" stroke-dasharray="4 3" marker-end="url(#m-run)"/>`;
+    else if (t === "fake") routes += `<path d="${d}" fill="none" stroke="var(--chalk)" stroke-width="1.4" stroke-dasharray="3 3" opacity="0.7"/>`;
+    else if (t === "block") routes += `<path d="${d}" fill="none" stroke="var(--chalk)" stroke-width="1.4" marker-end="url(#m-tee)"/>`;
+  }
+  return `<svg class="field" viewBox="0 0 320 216" role="img" aria-label="${esc(play.name)} diagram from ${esc(f.label)}">${fieldBase()}${routes}${offense(play.f, false)}</svg>`;
+}
+
+function lookSVG(look) {
+  const d = look.d;
+  let s = fieldBase() + offense("doubles", true);
+  for (const z of d.zones) {
+    const [x1, x2, y1, y2, k, label] = z;
+    const fill = k === "d" ? "var(--zone-deep)" : k === "s" ? "var(--zone-special)" : "var(--zone-under)";
+    const x = +SX(x1) + 1.5, w = +SX(x2) - +SX(x1) - 3, y = +SY(y2) + 1.5, h = +SY(y1) - +SY(y2) - 3;
+    s += `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="7" fill="${fill}" stroke="var(--chalk-dim)" stroke-width="0.6"/>`;
+    if (label) s += `<text x="${(x + w / 2).toFixed(1)}" y="${(y + 9).toFixed(1)}" text-anchor="middle" font-size="7" font-weight="600" fill="var(--chalk)" font-family="var(--font-body)">${esc(label)}</text>`;
+  }
+  const off = FORMS.doubles;
+  for (const [x, y, rec] of d.man || []) {
+    const [rx, ry] = off[rec];
+    s += `<line x1="${SX(x)}" y1="${SY(y)}" x2="${SX(rx)}" y2="${SY(ry)}" stroke="var(--def)" stroke-width="1" stroke-dasharray="2.5 2.5" opacity="0.85"/>`;
+  }
+  for (const [x, y, tx, ty] of d.blitz || []) {
+    s += `<path d="${path([[x, y], [tx, ty]])}" stroke="var(--def)" stroke-width="1.8" fill="none" marker-end="url(#m-def)"/>`;
+  }
+  const dl = [["E", 42, 1.3], ["T", 47.5, 1.3], ["T", 52.5, 1.3], ["E", 58, 1.3]];
+  for (const [l, x, y] of [...dl, ...d.defs]) {
+    s += `<text x="${SX(x)}" y="${(+SY(y) + 3).toFixed(1)}" text-anchor="middle" font-size="${l.length > 1 ? 8 : 8.5}" font-weight="700" fill="var(--def)" font-family="var(--font-display)" letter-spacing="0.02em">${l}</text>`;
+  }
+  for (const [x, y, t] of d.notes || []) {
+    s += `<text x="${SX(x)}" y="${SY(y)}" text-anchor="middle" font-size="7.5" font-weight="700" fill="var(--chalk)" font-family="var(--font-body)" letter-spacing="0.08em">${esc(t)}</text>`;
+  }
+  return `<svg class="field" viewBox="0 0 320 216" role="img" aria-label="${esc(look.name)} alignment and coverage diagram">${s}</svg>`;
+}
+
+// ---------- state + render ----------
+function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+const state = {
+  level: ["hs", "college", "nfl"].includes(store("pc-level")) ? store("pc-level") : "hs",
+  look: LOOKS.some(l => l.id === location.hash.slice(1)) ? location.hash.slice(1) : "cover-3",
+  filter: "all"
+};
+
+function segs(el, items, current, onPick) {
+  el.innerHTML = items.map(([v, l]) => `<button type="button" id="${el.id}-${v}" data-v="${v}" aria-pressed="${v === current}">${l}</button>`).join("");
+  el.querySelectorAll("button").forEach(b => b.addEventListener("click", () => onPick(b.dataset.v)));
+}
+
+function renderNav() {
+  const nav = document.getElementById("looks");
+  nav.querySelectorAll(".look-btn").forEach(b => b.remove());
+  for (const l of LOOKS) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "look-btn"; b.id = "look-" + l.id;
+    b.setAttribute("aria-current", l.id === state.look);
+    b.innerHTML = `<strong>${esc(l.name)}</strong><span class="shell">${esc(l.shell)}</span>`;
+    b.addEventListener("click", () => { location.hash = l.id; });
+    nav.appendChild(b);
+  }
+}
+
+function renderLook() {
+  const look = LOOKS.find(l => l.id === state.look);
+  const [freq, note] = look.lv[state.level];
+  const lvlName = LEVELS.find(l => l[0] === state.level)[1];
+  document.getElementById("look").innerHTML = `
+    <div>
+      ${lookSVG(look)}
+      <div class="legend">
+        <span><i style="background:var(--zone-deep)"></i>Deep zone</span>
+        <span><i style="background:var(--zone-under);outline:1px solid var(--line)"></i>Underneath zone</span>
+        ${look.d.man ? `<span><i style="background:transparent;border-top:2px dashed var(--def);height:0;border-radius:0"></i>Man</span>` : ""}
+      </div>
+    </div>
+    <div class="info">
+      <h2>${esc(look.name)}</h2>
+      <p class="alias">${esc(look.alias)}</p>
+      <div class="chips"><span class="chip">${esc(look.shell)} shell</span><span class="chip freq">${esc(lvlName)}: ${esc(freq)}</span></div>
+      <h3>How to spot it</h3>
+      <p>${esc(look.spot)}</p>
+      <h3>Where it's weak</h3>
+      <ul>${look.weak.map(w => `<li>${esc(w)}</li>`).join("")}</ul>
+      <h3>Avoid</h3>
+      <p class="avoid">${esc(look.avoid)}</p>
+      <div class="level-note"><b>${esc(lvlName)}</b> &middot; ${esc(note)}</div>
+    </div>`;
+  document.getElementById("calls-title").textContent = `Calls that beat ${look.name}`;
+
+  const keep = t => state.filter === "all" || (state.filter === "pass" ? ["Pass", "Screen", "RPO"].includes(t) : ["Run", "RPO"].includes(t));
+  const calls = look.calls.filter(([id]) => keep(PLAYS[id].type));
+  const box = document.getElementById("calls");
+  if (!calls.length) { box.innerHTML = `<p class="empty">No ${state.filter} calls listed for ${esc(look.name)} yet. Switch the filter to All.</p>`; return; }
+  box.innerHTML = calls.map(([id, tag, why], i) => {
+    const p = PLAYS[id];
+    const warn = state.level === "hs" && p.diff === "Advanced"
+      ? `<div class="warn">Advanced read for most high school QBs. Rep it in practice before you call it.</div>` : "";
+    return `<article class="play">
+      <div class="play-top"><span class="num">${String(i + 1).padStart(2, "0")}</span><h3>${esc(p.name)}</h3></div>
+      <div class="chips"><span class="chip t-${p.type}">${p.type}</span><span class="chip">${esc(tag)}</span></div>
+      ${playSVG(p)}
+      <p class="why"><b>Why it works vs ${esc(look.name)}</b>${esc(why)}</p>
+      <p class="read"><b>Key read</b>${esc(p.read)}</p>
+      <p class="read"><b>The play</b>${esc(p.desc)}</p>
+      ${warn}
+      <div class="meta"><span>${esc(FORMS[p.f].label)}</span><span>Difficulty: ${p.diff}</span></div>
+    </article>`;
+  }).join("");
+}
+
+function renderAll() {
+  segs(document.getElementById("level"), LEVELS.map(([v, l]) => [v, l]), state.level, v => { state.level = v; store("pc-level", v); renderAll(); });
+  segs(document.getElementById("filter"), FILTERS, state.filter, v => { state.filter = v; renderAll(); });
+  renderNav();
+  renderLook();
+}
+
+window.addEventListener("hashchange", () => {
+  const id = location.hash.slice(1);
+  if (LOOKS.some(l => l.id === id)) { state.look = id; renderAll(); }
+});
+renderAll();
+</script>
+</body>
+</html>
