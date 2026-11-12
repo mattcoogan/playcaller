@@ -196,13 +196,11 @@ const PRESSURE_FOR = { "cover-3": ["fire-zone", "nickel-edge", "sim"], "cover-1"
 function rushCount(cov, pressure) { return pressure ? PRESSURES[pressure].rush : cov === "cover-0" ? 6 : 4; }
 
 // Box defenders by coverage in the base picture (nickel vs 11 personnel).
-const BOX = { "cover-3": 7, "cover-1": 7, "cover-0": 8, "cover-2": 6, "tampa-2": 6, "cover-4": 7, "cover-6": 6, "two-man": 6 };
+// The box: defenders aligned between the tackles plus a one-yard margin (OL spans x 40-60) and within 6 yards of the
+// line. Counted from the same alignment that gets drawn, so the number always matches the diagram.
 function boxCount(cov, ctx) {
-  let b = BOX[cov] + (FRONTS[ctx.front || "over"].box || 0);
-  if (ctx.form === "twoBack") b += 1;
-  if (ctx.form === "empty") b -= 1;
-  if (ctx.pressure && !PRESSURES[ctx.pressure].sim) b += 1;
-  return b;
+  const defs = [...dlFor(ctx.front), ...adjustDefs(lookById(cov), ctx)];
+  return defs.filter(([, x, y]) => x >= 36 && x <= 64 && y <= 6).length;
 }
 function blockerCount(playId, ctx) {
   let b = 5 + (ctx.form === "twoBack" ? 2 : 0);
@@ -259,8 +257,8 @@ function grade(playId, covId, sitText, ctx = {}) {
   // Run game: numbers and front
   if (isRun && playId !== "qbDraw" && playId !== "draw") {
     const box = boxCount(covId, ctx), blk = blockerCount(playId, ctx), un = box - blk;
-    if (un <= 1) add(1, `Light box: ${box} defenders near the ball against ${blk} blockers.`);
-    else if (un >= 3) add(-1, `Loaded box: ${box} defenders against ${blk} blockers. Someone is unblocked.`);
+    if (un <= 0) add(1, `Light box: ${box} defenders near the ball against ${blk} blockers.`);
+    else if (un >= 2) add(-1, `Loaded box: ${box} defenders against ${blk} blockers. Someone is unblocked.`);
   }
   if (isRun && ctx.front) {
     const fm = (FRONT_MODS[ctx.front] || {})[playId];
