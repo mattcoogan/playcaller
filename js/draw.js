@@ -31,12 +31,12 @@ function offense(form, faint) {
 
 function path(pts) { return pts.map((p, i) => `${i ? "L" : "M"}${SX(p[0])} ${SY(p[1])}`).join(" "); }
 
-function playSVG(play0, form) {
-  const play = remapPlay(play0, form);
+function routeShapes(play) {
   const f = FORMS[play.f];
   let routes = "";
   for (const r of play.r) {
     const start = r.p ? f[r.p] : [OL[r.ol], -1];
+    if (!start) continue;
     const d = path([start, ...r.pts]);
     const t = r.t || "route";
     if (t === "route") routes += `<path d="${d}" fill="none" stroke="var(--route)" stroke-width="1.8" stroke-linejoin="round" marker-end="url(#m-route)"/>`;
@@ -45,7 +45,13 @@ function playSVG(play0, form) {
     else if (t === "fake") routes += `<path d="${d}" fill="none" stroke="var(--chalk)" stroke-width="1.4" stroke-dasharray="3 3" opacity="0.7"/>`;
     else if (t === "block") routes += `<path d="${d}" fill="none" stroke="var(--chalk)" stroke-width="1.4" marker-end="url(#m-tee)"/>`;
   }
-  return `<svg class="field" viewBox="0 0 320 216" role="img" aria-label="${esc(play.name)} diagram from ${esc(f.label)}">${fieldBase()}${routes}${offense(play.f, false)}</svg>`;
+  return routes;
+}
+
+function playSVG(play0, form) {
+  const play = remapPlay(play0, form);
+  const f = FORMS[play.f];
+  return `<svg class="field" viewBox="0 0 320 216" role="img" aria-label="${esc(play.name)} diagram from ${esc(f.label)}">${fieldBase()}${routeShapes(play)}${offense(play.f, false)}</svg>`;
 }
 
 // Where each defender lines up, given the offense's formation and any pressure.

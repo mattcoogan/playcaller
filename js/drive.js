@@ -19,15 +19,15 @@ const DC_LEVEL = {
   college: { "cover-4": 1.4, "cover-6": 1.2 },
   nfl: { "cover-1": 1.4, "cover-6": 1.2, "cover-0": 0.8 }
 };
-function baseScore(playId, covId) {
-  const look = lookById(covId);
+function baseScore(playId0, covId) {
+  const look = lookById(covId), playId = cidOf(playId0);
   if (look.calls.some(c => c[0] === playId)) return 3;
   const w = (WEAK_CALLS[covId] || {})[playId];
   return w ? w[0] : 2;
 }
 
 let G = null;
-const DS = { mode: "drive", length: "half", pcOn: true, pcTimer: null, showWhy: false };
+const DS = { mode: "drive", length: "half", pcOn: true, pcTimer: null, showWhy: false, useSheet: false };
 
 function hurry() { return G.mode === "2min" || (G.clock <= 120 && (G.quarter === 2 || G.quarter === 4)); }
 
@@ -59,6 +59,18 @@ function dcPick() {
       notes.push(`You've called ${PLAYS[topId].name} ${n} times in your last ${rec.length} plays. The DC is calling coverages that take it away.`);
     }
   }
+  if (G.sheetMode) {
+    const b = bucketFor(G.down, G.dist, G.ball), sc = G.scout[b.id], n = scoutN(G.scout, b.id);
+    if (n >= 2) {
+      const ent = Object.entries(sc).sort((a, c) => c[1] - a[1]);
+      for (const [pid, cnt] of ent) for (const c of Object.keys(w)) if (baseScore(pid, c) === 3) w[c] *= 1 - 0.6 * cnt / n;
+      const runs = ent.filter(([id]) => PLAYS[id].type === "Run").reduce((a, [, c]) => a + c, 0);
+      if (n >= 3 && runs / n >= 0.7) { SINGLE_HIGH.forEach(c => w[c] *= 1.4); notes.push(`Scouting report: you ran on ${runs} of ${n} ${b.name} calls so far. The DC is loading the box.`); }
+      else if (n >= 3 && runs / n <= 0.3) { TWO_HIGH.forEach(c => w[c] *= 1.3); notes.push(`Scouting report: you threw on ${n - runs} of ${n} ${b.name} calls so far. The DC is staying two-high.`); }
+      const [top, tn] = ent[0];
+      if (tn >= 2) notes.push(`Scouting report: in ${b.name} you've called ${PLAYS[top].name} ${tn} of ${n} times. The DC built this call to take it away.`);
+    }
+  }
   if (hurry() && G.mode !== "drive") { ["cover-2", "tampa-2", "cover-4"].forEach(c => w[c] *= 1.4); notes.push("Late in the half, the defense leans on two-deep coverages to protect the sidelines and the deep ball."); }
   const ids = Object.keys(w).filter(c => c !== G.lastCov || chance(0.5));
   let r = Math.random() * ids.reduce((s, c) => s + w[c], 0);
@@ -75,18 +87,18 @@ function dcPick() {
 }
 
 function simOutcome(playId, score, flags = {}, prot = "standard") {
-  const p = PLAYS[playId], meta0 = PMETA[playId];
-  const meta = prot === "hot" && !QUICK.includes(playId) && p.type !== "Run" ? { d: Math.min(meta0.d, 6) } : meta0;
+  const p = PLAYS[playId], meta0 = PMETA[playId], cp = cidOf(playId);
+  const meta = prot === "hot" && !QUICK.includes(cp) && p.type !== "Run" ? { d: Math.min(meta0.d, 6) } : meta0;
   if (p.type === "Run") {
     if (chance(0.015)) return { kind: "fumble", yards: ri(0, 3) };
     let y = Math.round([0.3, 1.8, 3.4, 4.8][score] + gauss() * 3);
     if (chance([0.005, 0.015, 0.035, 0.06][score])) y += ri(10, 40);
     y = Math.max(-4, y);
-    return { kind: "run", yards: y, oob: playId === "oz" && chance(0.15) };
+    return { kind: "run", yards: y, oob: cp === "oz" && chance(0.15) };
   }
   let [comp, inc, sack] = [[0.34, 0.44, 0.14], [0.46, 0.39, 0.10], [0.57, 0.33, 0.07], [0.67, 0.26, 0.05]][score];
   if (meta.slow) { comp -= 0.08; inc += 0.08; }
-  if (QUICK.includes(playId) || prot === "hot") { comp += sack / 2; sack /= 2; }
+  if (QUICK.includes(cp) || prot === "hot") { comp += sack / 2; sack /= 2; }
   if (prot === "max") { comp += sack / 2; sack /= 2; }
   if (flags.unblocked) { const extra = Math.min(comp - 0.15, sack * 1.5); comp -= extra; sack += extra; }
   const r = Math.random();
@@ -94,7 +106,7 @@ function simOutcome(playId, score, flags = {}, prot = "standard") {
     let y = meta.slow ? meta.d + ri(-2, 6) : meta.d + ri(-3, 1);
     y += ri(0, [1, 2, 4, 6][score]);
     if (chance([0.01, 0.025, 0.05, 0.09][score])) y += ri(10, 35);
-    return { kind: "complete", yards: Math.max(0, y), oob: SIDELINE.includes(playId) && chance(0.3) };
+    return { kind: "complete", yards: Math.max(0, y), oob: SIDELINE.includes(cp) && chance(0.3) };
   }
   if (r < comp + inc) return { kind: "inc", yards: 0 };
   if (r < comp + inc + sack) return { kind: "sack", yards: -ri(4, 9) };
@@ -112,7 +124,7 @@ function tick(sec) {
 
 function newGame() {
   const qLen = state.level === "hs" ? 720 : 900;
-  G = { mode: DS.mode, length: DS.length, qLen, quarter: 1, clock: qLen, us: 0, them: 0, to: 3, running: false,
+  G = { sheetMode: DS.useSheet, scout: {}, mode: DS.mode, length: DS.length, qLen, quarter: 1, clock: qLen, us: 0, them: 0, to: 3, running: false,
         ball: 25, down: 1, dist: 10, phase: "call", cov: null, dcNotes: [], picked: null, last: null,
         recent: [], lastCov: null, form: "doubles", prot: "standard", front: "over", pressure: null, motion: false, drive: null, drives: [], oppLog: [], allNotes: new Set(), flash: [], over: false, oppSecondHalf: false, scenario: null };
   if (G.mode === "2min") {
@@ -180,12 +192,19 @@ function snapPlay(playId) {
   if (!preSnapRunoff()) return;
   const ctx = { form: G.form, front: G.front, pressure: G.pressure, prot: PLAYS[playId].type === "Run" ? "standard" : G.prot };
   const g = grade(playId, G.cov, sit, ctx);
+  let offSheet = false;
+  if (G.sheetMode) {
+    const b = bucketFor(G.down, G.dist, G.ball);
+    offSheet = !sheetHas(b.id, playId, G.drive.plays.length);
+    if (offSheet && g.score > 0) { g.score--; g.mods.push({ d: -1, t: "Off the sheet: the team hasn't rehearsed this call for this situation." }); }
+    scoutRecord(G.scout, b.id, playId);
+  }
   const o = simOutcome(playId, g.score, g.flags, ctx.prot);
   const p = PLAYS[playId];
   G.recent.push(playId); if (G.recent.length > 8) G.recent.shift();
   G.dcNotes.forEach(n => G.allNotes.add(n));
   tick(p.type === "Run" ? ri(4, 7) : ri(5, 8));
-  const entry = { sit, play: playId, cov: G.cov, g, o, ctx, notes: G.dcNotes.slice(), text: "" };
+  const entry = { sit, play: playId, cov: G.cov, g, o, ctx, notes: G.dcNotes.slice(), text: "", offSheet };
   G.drive.plays.push(entry);
   G.last = entry;
   let ended = null;
@@ -380,7 +399,16 @@ function scoreboard() {
 }
 
 function playbookHTML() {
-  return `<div class="pb" id="ds-pb">${playbookButtons("ds", G.form, G.picked, false)}</div>`;
+  if (!G.sheetMode) return `<div class="pb" id="ds-pb">${playbookButtons("ds", G.form, G.picked, false)}</div>`;
+  const b = bucketFor(G.down, G.dist, G.ball), snap = G.drive.plays.length;
+  const btn = id => { const ok = playForms(id).includes(G.form);
+    return `<button type="button" class="opt${G.picked === id ? " picked" : ""}" data-v="${id}" ${ok ? "" : `disabled title="Not called from ${esc(FORMS[G.form].label)}"`}>${esc(PLAYS[id].name)}</button>`; };
+  const slot = [...new Set(SHEET.slots[b.id].filter(Boolean))];
+  const offPicked = G.picked && !sheetHas(b.id, G.picked, snap);
+  return `<div class="pb" id="ds-pb">
+    ${SHEET.script[snap] ? `<div class="pb-group"><h4>Script, play ${snap + 1}</h4><div class="opts">${btn(SHEET.script[snap])}</div></div>` : ""}
+    <div class="pb-group"><h4>Your sheet: ${esc(b.name)}</h4><div class="opts">${slot.length ? slot.map(btn).join("") : `<span class="mstat">Nothing on your sheet for this situation.</span>`}</div></div>
+    <details class="pb-off" ${offPicked ? "open" : ""}><summary>Off the sheet (costs one grade)</summary>${playbookButtons("dsx", G.form, G.picked, false)}</details></div>`;
 }
 
 function whyHTML(e) {
@@ -414,6 +442,10 @@ function setupHTML() {
       ${[["quarter", "One quarter"], ["half", "One half"], ["game", "Full game"]].map(([v, l]) => `<button type="button" data-v="${v}" aria-pressed="${DS.length === v}">${l}</button>`).join("")}</div></div>` : ""}
     <div><span class="seg-label" id="pc-label">40-second play clock (real time)</span><div class="seg" role="group" aria-labelledby="pc-label" id="pc-seg">
       <button type="button" data-v="on" aria-pressed="${DS.pcOn}">On</button><button type="button" data-v="off" aria-pressed="${!DS.pcOn}">Off</button></div></div>
+    <div><span class="seg-label" id="sh-label">Playbook</span><div class="seg" role="group" aria-labelledby="sh-label" id="sh-seg">
+      <button type="button" data-v="off" aria-pressed="${!DS.useSheet}">Full playbook</button>
+      <button type="button" data-v="on" aria-pressed="${DS.useSheet}">My sheet</button></div></div>
+    ${DS.useSheet ? (sheetCount() ? `<p class="hint">You can only call what's on your sheet for each situation (plus your script on the first snaps of a drive). Anything else is off the sheet and costs a grade. The defense scouts your tendencies across drives. <a href="#play-sheet">Edit my sheet</a></p>` : `<p class="banner">Your sheet is empty, so every call would be off the sheet. <a href="#play-sheet">Build it first</a>.</p>`) : ""}
     <button type="button" class="primary" id="ds-start">Start ${DS.mode === "drive" ? "the drive" : DS.mode === "2min" ? "the drill" : "the game"}</button>`;
 }
 
@@ -545,6 +577,16 @@ function driveOverHTML() {
   </div>`;
 }
 
+function scoutHTML() {
+  const rows = BUCKETS.map(b => {
+    const n = scoutN(G.scout, b.id); if (!n) return "";
+    const ent = Object.entries(G.scout[b.id]).sort((a, c) => c[1] - a[1]).slice(0, 3);
+    const runs = Object.entries(G.scout[b.id]).filter(([id]) => PLAYS[id].type === "Run").reduce((a, [, c]) => a + c, 0);
+    return `<li><span class="s">${esc(b.name)} · ${n} snap${n === 1 ? "" : "s"} · ${Math.round(100 * runs / n)}% run</span>${ent.map(([id, c]) => `${esc(PLAYS[id].name)} ×${c}`).join(", ")}</li>`;
+  }).join("");
+  return `<h2>Scouting report</h2><p>What the opponent has seen from you. Predictable sheets get punished.</p>${rows ? `<ul class="log">${rows}</ul>` : `<p>Nothing yet.</p>`}`;
+}
+
 function dsSide() {
   const side = document.getElementById("ds-side");
   if (!G) {
@@ -558,7 +600,8 @@ function dsSide() {
   const items = d ? d.plays.slice().reverse().map(e => e.g
     ? `<li class="g${e.g.score}"><span class="s">${esc(e.sit)}</span>${esc(PLAYS[e.play].name)} vs ${esc(lookById(e.cov).name)}: ${esc(e.text)}</li>`
     : `<li><span class="s">${esc(e.sit)}</span>${esc(e.text)}</li>`).join("") : "";
-  side.innerHTML = `<h2>This drive</h2>
+  const scout = G.sheetMode ? scoutHTML() : "";
+  side.innerHTML = `${scout}<h2>This drive</h2>
     ${G.scenario ? `<p class="banner">${esc(G.scenario)}</p>` : ""}
     ${items ? `<ul class="log">${items}</ul>` : "<p>No plays yet.</p>"}
     ${G.mode === "game" && G.oppLog.length ? `<h2 style="font-size:1.1rem">Game log</h2><ul class="log">${G.drives.map((x, i) => `<li><span class="s">Your drive ${i + 1}</span>${esc(x.result)}${x.pts ? ` (+${x.pts})` : ""}</li>`).join("")}${G.oppLog.map(o => `<li><span class="s">Opponent</span>${esc(o.text)}</li>`).join("")}</ul>` : ""}
@@ -573,6 +616,7 @@ function dsRender() {
     main.querySelectorAll(".mode").forEach(b => b.addEventListener("click", () => { DS.mode = b.dataset.m; dsRender(); }));
     const len = document.getElementById("len-seg");
     if (len) len.querySelectorAll("button").forEach(b => b.addEventListener("click", () => { DS.length = b.dataset.v; dsRender(); }));
+    document.getElementById("sh-seg").querySelectorAll("button").forEach(b => b.addEventListener("click", () => { DS.useSheet = b.dataset.v === "on"; dsRender(); }));
     document.getElementById("pc-seg").querySelectorAll("button").forEach(b => b.addEventListener("click", () => { DS.pcOn = b.dataset.v === "on"; dsRender(); }));
     document.getElementById("ds-start").addEventListener("click", newGame);
     dsSide(); return;

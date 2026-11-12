@@ -29,6 +29,8 @@
     <button type="button" class="tab" id="tab-trainer">Coverage ID</button>
     <button type="button" class="tab" id="tab-callit">Call It</button>
     <button type="button" class="tab" id="tab-drive">Drive Sim</button>
+    <button type="button" class="tab" id="tab-lab">Play Lab</button>
+    <button type="button" class="tab" id="tab-sheet">My Sheet</button>
   </nav>
   <div>
     <span class="seg-label" id="level-label">Level</span>
@@ -49,6 +51,16 @@
 <main class="trainer" id="view-drive" hidden>
   <section class="rep" id="ds-main"></section>
   <aside class="progress" id="ds-side"></aside>
+</main>
+
+<main class="trainer" id="view-lab" hidden>
+  <section class="rep" id="lab-main"></section>
+  <aside class="progress" id="lab-side"></aside>
+</main>
+
+<main class="trainer" id="view-sheet" hidden>
+  <section class="rep" id="sheet-main"></section>
+  <aside class="progress" id="sheet-side"></aside>
 </main>
 
 <main class="layout" id="view-lookup">
@@ -78,6 +90,9 @@
 <script src="js/shared.js"></script>
 <script src="js/callit.js"></script>
 <script src="js/drive.js"></script>
+<script src="js/routes.js"></script>
+<script src="js/designer.js"></script>
+<script src="js/sheet.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

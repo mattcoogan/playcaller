@@ -17,6 +17,8 @@ const PMETA = {
   yankee: { d: 20, slow: 1 }, tunnel: { d: 4 }, counter: { d: 4 }, duo: { d: 4 }, trap: { d: 4 }, jetSweep: { d: 5 },
   toss: { d: 4 }, qbPower: { d: 4 }, rpoGlance: { d: 6 }
 };
+// A custom play is graded as the built-in concept it resembles (PLAYS[id].concept).
+const cidOf = id => (PLAYS[id] && PLAYS[id].concept) || id;
 const QUICK = ["slantFlat", "stick", "snag", "mesh", "spacing", "hoss", "rpoBubble", "rpoGlance", "rbScreen", "tunnel"];
 const SIDELINE = ["smash", "flood", "boot", "slantFlat", "stick", "curlFlat", "hoss", "postWheel"];
 const QB_READ = ["zoneRead", "rpoBubble", "rpoGlance", "qbPower"];
@@ -213,12 +215,15 @@ const RUNS_NO_EMPTY = ["doubles", "trips", "bunch", "twoBack"];
 const SPREAD = ["doubles", "trips", "bunch", "empty"];
 const FROM_TWO_BACK = ["boot", "yankee", "flood", "curlFlat", "smash", "slantFlat", "stick", "dagger", "drive", "levels", "postWheel"];
 function playForms(playId) {
-  const p = PLAYS[playId];
-  if (["qbDraw", "qbPower"].includes(playId)) return FORM_ORDER;
-  if (p.type === "Run" || playId === "rbScreen") return RUNS_NO_EMPTY;
-  if (p.type === "RPO") return ["doubles", "trips", "bunch"];
-  if (playId === "tunnel") return SPREAD;
-  return FROM_TWO_BACK.includes(playId) ? FORM_ORDER : SPREAD;
+  const p = PLAYS[playId], id = cidOf(playId);
+  let forms;
+  if (["qbDraw", "qbPower"].includes(id)) forms = FORM_ORDER;
+  else if (p.type === "Run" || id === "rbScreen") forms = RUNS_NO_EMPTY;
+  else if (p.type === "RPO") forms = ["doubles", "trips", "bunch"];
+  else if (id === "tunnel") forms = SPREAD;
+  else forms = FROM_TWO_BACK.includes(id) ? FORM_ORDER : SPREAD;
+  if (p.custom && !forms.includes(p.f)) forms = [p.f, ...forms];
+  return forms;
 }
 
 const PROTECTIONS = [["standard", "Standard"], ["slide", "Slide"], ["max", "Max protect"], ["hot", "Hot (throw quick)"]];
@@ -229,8 +234,9 @@ const PROT_INFO = {
   hot: "Get the ball out on the quick throw. Beats a free rusher, but gives up the deep routes."
 };
 
-function grade(playId, covId, sitText, ctx = {}) {
-  const look = lookById(covId), p = PLAYS[playId], meta = PMETA[playId], sit = parseSit(sitText);
+function grade(playIdRaw, covId, sitText, ctx = {}) {
+  const look = lookById(covId), p = PLAYS[playIdRaw], meta = PMETA[playIdRaw], sit = parseSit(sitText);
+  const playId = cidOf(playIdRaw);
   const rec = look.calls.find(c => c[0] === playId);
   const weak = (WEAK_CALLS[covId] || {})[playId];
   let score, why;
