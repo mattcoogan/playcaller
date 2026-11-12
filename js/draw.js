@@ -53,7 +53,7 @@ function adjustDefs(look, opts = {}) {
   const form = opts.form || "doubles", F = FORMS[form];
   const man = look.d.man || [];
   const pr = opts.pressure ? PRESSURES[opts.pressure] : null;
-  return look.d.defs.map(([l, x, y]) => {
+  const out = look.d.defs.map(([l, x, y]) => {
     const m = man.find(mm => mm[0] === x && mm[1] === y);
     let nx = x, ny = y;
     if (m && F[m[2]]) nx = F[m[2]][0];
@@ -67,6 +67,27 @@ function adjustDefs(look, opts = {}) {
     if (pr && pr.blitzers[l]) [nx, ny] = l === "NB" ? [nx + (nx < 50 ? 7 : -7), 2.6] : pr.blitzers[l];
     return [l, nx, ny, m ? m[2] : null];
   });
+  return fitToEleven(out, opts);
+}
+
+// The front sets the linemen (3 to 5), but the coverage defines 7 more. Keep the total at 11:
+// a 5-man line trades away a linebacker, a 3-man line adds one.
+function fitToEleven(defs, opts) {
+  const need = 11 - dlFor(opts.front).length;
+  const pr = opts.pressure ? PRESSURES[opts.pressure] : null;
+  const out = defs.slice();
+  while (out.length > need) {
+    const free = out.filter(d => (d[0] === "W" || d[0] === "M") && !d[3] && !(pr && pr.blitzers[d[0]]));
+    const pool = free.length ? free : out.filter(d => d[0] === "W" || d[0] === "M");
+    const drop = pool.length ? pool[0] : out[out.length - 1];
+    out.splice(out.indexOf(drop), 1);
+  }
+  while (out.length < need) {
+    const lbs = out.filter(d => d[0] === "W" || d[0] === "M").map(d => d[1]);
+    const x = [50, 36, 64].map(c => [c, Math.min(...lbs.map(v => Math.abs(v - c)), 99)]).sort((a, b) => b[1] - a[1])[0][0];
+    out.push(["B", x, 4.5, null]);
+  }
+  return out;
 }
 function dlFor(front) { return (FRONTS[front || "over"] || FRONTS.over).dl.map(([l, x]) => [l, x, 1.3]); }
 function defText(l, x, y) {
